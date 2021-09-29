@@ -1,0 +1,19 @@
+{
+  "name": "volumes",
+  "version": "1.0.0",
+  "description": "volume displays",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "stream": "0.0.2",
+    "vtk.js": "^15.0.0",
+    "wslink": "^0.1.16"
+  },
+  "devDependencies": {
+    "kw-web-suite": "^11.1.0"
+  }
+}

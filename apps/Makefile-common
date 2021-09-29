@@ -1,0 +1,38 @@
+all: dist/app.js src/index.html
+
+SOURCES?=src/main.js
+INS_DIR=/var/www/html/apps/3d
+EXTRA_FILES?=src/index.html
+
+install: all
+ifdef EXTRA_FILES
+	cp ${EXTRA_FILES} dist/.
+endif
+	rm -rf ${INS_DIR}/${MYAPP}
+	mkdir -p ${INS_DIR}
+	cp -r dist ${INS_DIR}/${MYAPP}
+
+dist/app.js: init webpack.config.js ${SOURCES:?src/main.js}
+	npx webpack --progress
+
+clean:
+	@echo '"make clean-app" to remove just the app'
+	@echo '"make clean-all" to remove the app and all npm modules in this directory'
+
+clean-app:
+	rm -rf dist
+
+clean-all: clean-app clean-node-modules
+
+clean-node-modules:
+	rm -rf node_modules
+
+init: package.json node_modules
+
+package.json:
+	npm init
+
+node_modules:
+	npm install --save-dev kw-web-suite
+	npm install --save wslink
+	npm install --save stream
