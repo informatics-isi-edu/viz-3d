@@ -7,7 +7,7 @@ import volume from './volume.js';
 import image_utils from "./utils.js";
 
 const userParams = vtkURLExtract.extractURLParameters();
-const utils = new image_utils(userParams);
+const utils = new image_utils(userParams, config_params);
 const fileURL = userParams['fileURL'];
 const skipHeaders = userParams['skipHeaders'];
 

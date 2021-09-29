@@ -1,11 +1,11 @@
 import HttpDataAccessHelper from 'vtk.js/Sources/IO/Core/DataAccessHelper/HttpDataAccessHelper';
 import macro from 'vtk.js/Sources/macro';
-import { config_params } from './config.js';
+// import { config_params } from './config.js';
 
 export default class image_utils {
-    constructor(userParams, query_template = config_params.default_query_template) {
+    constructor(userParams, config_params) {
 	this.userParams = userParams;
-	this.query_template = query_template;
+	this.query_template = config_params.default_query_template;
 	this.skip_headers = userParams['skipHeaders'];
     }
     
