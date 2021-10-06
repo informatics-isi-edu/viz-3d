@@ -1,0 +1,105 @@
+{
+    "dev.rebuildingakidney.org": {
+	"catalog_id": 2,
+	"scratch_directory": "/var/scratch/laura/3d/test",
+	"rid_to_file_query": "/attribute/Image_3D:=Gene_Expression:Image_3D/RID={rid}/source_file_url:=Original_File_URL,source_file_name:=Original_File_Name",
+	"base_hatrac_path": "/hatrac/resources/gene_expression/3d_images/2021",
+	"resolver_prefix": "/id/",
+	"processed_file_schema": "Gene_Expression",
+	"processed_file_table": "Processed_3D_Image",
+	"source_rid_column": "Image_3D",
+	"url_column": "File_URL",
+	"filename_column": "File_Name",
+	"md5_column": "File_MD5",
+	"size_column": "File_Bytes",
+	"downsample_percent_column": "Downsample_Percent",
+	"source_columns_to_copy": [
+	    "Consortium",
+	    "Curation_Status",
+	    "Principal_Investigator"
+	],
+	"columns_to_leave_at_defaults": [
+	    "Record_Status"
+	],
+	"status_update": {
+	    "schema": "Gene_Expression",
+	    "table": "Image_3D",
+	    "column": "Processing_Status",
+	    "detail_column": "Processing_Status_Detail"
+	},
+	"backpointer": {
+	    "schema": "Gene_Expression",
+	    "table": "Image_3D",
+	    "column": "Preview_Image"
+	}
+    },
+    "staging.rebuildingakidney.org": {
+	"catalog_id": 2,
+	"scratch_directory": "/var/scratch/laura/3d/test",
+	"rid_to_file_query": "/attribute/Image_3D:=Gene_Expression:Image_3D/RID={rid}/source_file_url:=Original_File_URL,source_file_name:=Original_File_Name",
+	"base_hatrac_path": "/hatrac/resources/gene_expression/3d_images/2021",
+	"resolver_prefix": "/id/",
+	"processed_file_schema": "Gene_Expression",
+	"processed_file_table": "Processed_3D_Image",
+	"source_rid_column": "Image_3D",
+	"url_column": "File_URL",
+	"filename_column": "File_Name",
+	"md5_column": "File_MD5",
+	"size_column": "File_Bytes",
+	"downsample_percent_column": "Downsample_Percent",
+	"source_columns_to_copy": [
+	    "Consortium",
+	    "Curation_Status",
+	    "Principal_Investigator"
+	],
+	"columns_to_leave_at_defaults": [
+	    "Record_Status"
+	],
+	"status_update": {
+	    "schema": "Gene_Expression",
+	    "table": "Image_3D",
+	    "column": "Processing_Status",
+	    "detail_column": "Processing_Status_Detail"
+	},
+	"backpointer": {
+	    "schema": "Gene_Expression",
+	    "table": "Image_3D",
+	    "column": "Preview_Image"
+	}
+    },
+    "www.rebuildingakidney.org": {
+	"catalog_id": 2,
+	"scratch_directory": "/var/scratch/laura/3d/test",
+	"rid_to_file_query": "/attribute/Image_3D:=Gene_Expression:Image_3D/RID={rid}/source_file_url:=Original_File_URL,source_file_name:=Original_File_Name",
+	"base_hatrac_path": "/hatrac/resources/gene_expression/3d_images/2021",
+	"resolver_prefix": "/id/",
+	"processed_file_schema": "Gene_Expression",
+	"processed_file_table": "Processed_3D_Image",
+	"source_rid_column": "Image_3D",
+	"url_column": "File_URL",
+	"filename_column": "File_Name",
+	"md5_column": "File_MD5",
+	"size_column": "File_Bytes",
+	"downsample_percent_column": "Downsample_Percent",
+	"source_columns_to_copy": [
+	    "Consortium",
+	    "Curation_Status",
+	    "Principal_Investigator"
+	],
+	"columns_to_leave_at_defaults": [
+	    "Record_Status"
+	],
+	"status_update": {
+	    "schema": "Gene_Expression",
+	    "table": "Image_3D",
+	    "column": "Processing_Status",
+	    "detail_column": "Processing_Status_Detail"
+	},
+	"backpointer": {
+	    "schema": "Gene_Expression",
+	    "table": "Image_3D",
+	    "column": "Preview_Image"
+	}
+    }
+    
+}
