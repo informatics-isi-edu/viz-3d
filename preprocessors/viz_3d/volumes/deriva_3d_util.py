@@ -105,7 +105,8 @@ class Deriva3DUtil:
         try:
             new_row = table.insert(
                 [row],
-                defaults=set(self.config.get('columns_to_leave_at_defaults'))
+                defaults=set(self.config.get('columns_to_leave_at_defaults')),
+                nondefaults=set(self.config.get('nondefaults'))
             )[0]
         except DataPathException as ex:
             # if the problem is that this is a duplicate, ignore it.
