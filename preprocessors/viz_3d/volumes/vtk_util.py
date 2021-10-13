@@ -9,6 +9,7 @@ import os
 from ctypes import *
 import logging
 import subprocess
+import shutil
 
 
 class VtkUtil:
@@ -32,13 +33,19 @@ class VtkUtil:
         return(cls.tiff_files_to_reader(files))
 
     # generates a filename of the form
-    #   /scratch_dir/scratch_subdir/filename[_downsample].vti
-    def make_vti_file_name(self, scratch_subdir, filename, downsample=None):
+    #   /scratch_dir/image_id/filename[_downsample].vti
+    def image_file_name(self, image_id, filename, downsample=None):
         filename = Path(filename).stem
         if downsample:
             filename = filename + '_' + str(downsample)
-        return(str((self.base_scratch_directory / scratch_subdir / filename)
-                   .with_suffix('.vti')))
+        return((self.scratch_image_directory(image_id) / filename)
+                   .with_suffix('.vti').as_posix())
+
+    def scratch_image_directory(self, image_id):
+        return self.base_scratch_directory / image_id
+
+    def clean_scratch_files(self, image_id):
+        shutil.rmtree(self.scratch_image_directory(image_id).as_posix(), ignore_errors=True)
 
     # list the tiff files in a directory
     @classmethod

@@ -6,9 +6,8 @@ from pyunpack import Archive
 from pathlib import Path
 import json
 
-
 class Deriva3DUtil:
-    def __init__(self, host, config_filename=None):
+    def __init__(self, host, config_filename=None, public_records_only=True):
         self.host = host
         self.config_path = Path(config_filename) if config_filename \
             else Path.home() / 'viz_3d_config.json'
@@ -16,15 +15,23 @@ class Deriva3DUtil:
         self.config = all_config.get(host)
         if self.config is None:
             raise ValueError('no configuration found for host {h}'.format(h=host))
-        credential = get_credential(host)
-        self.hatrac_server = HatracStore('https', host, credential)
-        server = DerivaServer('https', host, credential)
         catalog_id = self.config.get('catalog_id')
         if catalog_id is None:
             raise ValueError('no catalog_id specified for host {h} in file {f}'
                              .format(h=host), f=str(self.config_path))
+        credential = get_credential(host)
+        self.hatrac_server = HatracStore('https', host, credential)
+        server = DerivaServer('https', host, credential)
         self.catalog = server.connect_ermrest(catalog_id)
         self.pb = self.catalog.getPathBuilder()
+        if public_records_only:
+            read_server = DerivaServer('https', host, None)
+            self.read_catalog = read_server.connect_ermrest(catalog_id)
+            self.read_pb = self.read_catalog.getPathBuilder()
+        else:
+            self.read_catalog = self.catalog
+            self.read_pb = self.pb
+            
         scratch_directory = self.config.get('scratch_directory')
         if scratch_directory is None:
             raise ValueError('no scratch_directory specified for host {h} in file {f}'
@@ -36,8 +43,13 @@ class Deriva3DUtil:
         if su:
             self.status_table = self.pb.schemas.get(
                 su.get('schema')).tables.get(su.get('table'))
+            self.read_status_table = self.read_pb.schemas.get(
+                su.get('schema')).tables.get(su.get('table'))
+
             self.status_column_name = su['column']
             self.status_column_detail_name = su.get('detail_column')
+
+
 
         self.backpointer_table = None
         bp = self.config.get('backpointer')
@@ -56,7 +68,7 @@ class Deriva3DUtil:
             raise ValueError(
                 'no rid_to_file_query specified for host {h} in file {f}'
                 .format(h=self.host), f=str(self.self.config_path))
-        entries = self.catalog.get(query.format(rid=rid)).json()
+        entries = self.read_catalog.get(query.format(rid=rid)).json()
         if len(entries) != 1:
             raise ValueError("query for RID {r} didn't return a unique entry"
                              .format(r=rid))
@@ -140,11 +152,11 @@ class Deriva3DUtil:
                 raise ValueError('Bad RID ' + rid)
 
     def get_rids_with_status(self, status):
-        if self.status_table is None:
+        if self.read_status_table is None:
             raise ValueError('No status table configured')
         status_column = \
-            self.status_table.column_definitions[self.status_column_name]
-        entities = self.status_table.filter(status_column == status).entities()
+            self.read_status_table.column_definitions[self.status_column_name]
+        entities = self.read_status_table.filter(status_column == status).entities()
         rids = []
         for row in entities:
             rids.append(row['RID'])

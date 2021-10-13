@@ -42,11 +42,12 @@ def process_one_image(rid, du, vu, target_voxel_count):
                                       file_info['source_file_name'], rid)
     fraction = vu.find_best_size(reader, target_voxel_count)
     resizer = vu.vti_downsample(reader, fraction)
-    outfile = vu.make_vti_file_name(rid, file_info['source_file_name'],
+    outfile = vu.image_file_name(rid, file_info['source_file_name'],
                                     int(fraction * 100))
     vu.write_vti_from_reader(resizer, outfile)
     du.upload_processed_file(rid, outfile, int(fraction * 100))
     du.update_status(rid, 'success')
+    vu.clean_scratch_files(rid)
 
 
 if __name__ == '__main__':
