@@ -7,7 +7,14 @@ import traceback
 import sys
 import signal
 import logging
+from logging.handlers import SysLogHandler
 
+logger = logging.getLogger('process-3d-images')
+formatter = logging.Formatter('%(name)s: %(message)s')
+handler = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_LOCAL1)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 def main(host, target_voxel_count, status, rids, config_file):
     du = Deriva3DUtil(host, config_file)
@@ -26,7 +33,7 @@ def main(host, target_voxel_count, status, rids, config_file):
             print('Processing {rid}'.format(rid=rid))
             process_one_image(rid, du, vu, target_voxel_count)
         except Exception as ex:
-            logging.error(str(ex))
+            logger.error(str(ex))
             du.update_status(rid, 'error', ex)
 
 
@@ -35,7 +42,7 @@ def signal_handler(self, signal, frame=None):
 
 
 def process_one_image(rid, du, vu, target_voxel_count):
-    logging.info('processing RID {r}'.format(r=rid))
+    logger.info('processing RID {r}'.format(r=rid))
     du.update_status(rid, 'in progress')
     file_info = du.rid_to_file_info(rid)
     reader = vu.archive_to_vti_reader(file_info['source_file_url'],
