@@ -13,7 +13,8 @@ setup(
         'vtk',
         'pyunpack',
         'aiohttp<4.0.0',
-        'patool'
+        'patool',
+        'filetype'
     ],
     scripts=['bin/process-3d-images', 'bin/count-voxels']
 )

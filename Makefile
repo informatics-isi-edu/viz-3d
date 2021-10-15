@@ -1,10 +1,8 @@
 subdirs := apps preprocessors
+targets := all install clean
 
-all:
-	$(foreach dir,$(subdirs),cd ${dir}; make all;)
+$(targets): $(subdirs)
+$(subdirs):
+	$(MAKE) -C $@ $(MAKECMDGOALS)
 
-install:
-	$(foreach dir,$(subdirs),cd ${dir}; make install;)
-
-clean:
-	$(foreach dir,$(subdirs),cd ${dir}; make clean;)
+.PHONY: $(targets) $(subdirs)

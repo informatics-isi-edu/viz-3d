@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 from viz_3d.volumes.vtk_util import VtkUtil
 from viz_3d.volumes.deriva_3d_util import Deriva3DUtil
 from deriva.core import BaseCLI
