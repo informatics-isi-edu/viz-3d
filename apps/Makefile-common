@@ -8,9 +8,8 @@ install: all
 ifdef EXTRA_FILES
 	cp ${EXTRA_FILES} dist/.
 endif
-	rm -rf ${INS_DIR}/${MYAPP}
-	mkdir -p ${INS_DIR}
-	cp -r dist ${INS_DIR}/${MYAPP}
+	mkdir -p ${INS_DIR}/${MYAPP}
+	@rsync -avz dist/*.js dist/*.html ${INS_DIR}/${MYAPP}/.
 
 dist/app.js: init webpack.config.js ${SOURCES:?src/main.js}
 	npx webpack --progress
