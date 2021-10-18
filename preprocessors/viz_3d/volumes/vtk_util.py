@@ -1,7 +1,7 @@
 import vtk
 from urllib import request, parse
 from pathlib import Path
-from pyunpack import Archive
+from pyunpack import Archive, PatoolError
 from zipfile import BadZipFile
 import sys
 import re
@@ -10,6 +10,7 @@ from ctypes import *
 import logging
 import subprocess
 import shutil
+from . import readers
 
 
 class VtkUtil:
@@ -20,18 +21,6 @@ class VtkUtil:
         self.host = host
         self.base_scratch_directory = Path(scratch_directory)
 
-    # read a directory of tiff files and write a vti file
-    # without any additional processing - basically:
-    #   dir_to_vtk_array | tiff_files_to_reader | write_vti_from_reader
-    @classmethod
-    def tiff_dir_to_vti_reader(cls, indir):
-        inpath = Path(indir)
-        if inpath.is_dir():
-            files = cls.dir_to_vtk_array(inpath)
-        else:
-            raise ValueError('{dir} is not a directory'.format(dir=indir))
-        return(cls.tiff_files_to_reader(files))
-
     # generates a filename of the form
     #   /scratch_dir/image_id/filename[_downsample].vti
     def image_file_name(self, image_id, filename, downsample=None):
@@ -39,37 +28,16 @@ class VtkUtil:
         if downsample:
             filename = filename + '_' + str(downsample)
         return((self.scratch_image_directory(image_id) / filename)
-                   .with_suffix('.vti').as_posix())
+               .with_suffix('.vti').as_posix())
 
     def scratch_image_directory(self, image_id):
         return self.base_scratch_directory / image_id
 
     def clean_scratch_files(self, image_id):
-        shutil.rmtree(self.scratch_image_directory(image_id).as_posix(), ignore_errors=True)
+        shutil.rmtree(
+            self.scratch_image_directory(image_id).as_posix(), ignore_errors=True)
 
-    # list the tiff files in a directory
-    @classmethod
-    def dir_to_vtk_array(cls, dirpath, suffixes=['.tif', '.tiff']):
-        a = vtk.vtkStringArray()
-        for f in sorted(dirpath.glob('*')):
-            if f.suffix.lower() in suffixes:
-                a.InsertNextValue(str(f))
-        return(a)
-
-    # turn a list of tiff files into a vtkTIFFReader object
-    # you should only use this if you want to use the reader in a pipeline;
-    @classmethod
-    def tiff_files_to_reader(cls, tiff_files):
-        reader = vtk.vtkTIFFReader()
-        buf = bytearray(15000000000)
-        reader.SetMemoryBuffer(buf)
-        reader.SetFileNames(tiff_files)
-        reader.SetFileDimensionality(2)
-        reader.SetFileNameSliceSpacing(1)
-        reader.SetDataSpacing(1, 1, 1)
-        return(reader)
-
-    # convert a vtkTIFFReader object to a set of parallelized vti files
+    # write a vtk reader object to a set of parallelized vti files
     @classmethod
     def write_pvti_from_reader(cls, reader, outfilename, number_of_pieces):
         if number_of_pieces < 1:
@@ -83,7 +51,7 @@ class VtkUtil:
         writer.Update()
         writer.Write()
 
-    # turn a vtkTIFFReader object into a vti file
+    # write a vtk reader object to a vti file
     @classmethod
     def write_vti_from_reader(cls, reader, outfile):
         writer = vtk.vtkXMLImageDataWriter()
@@ -126,7 +94,7 @@ class VtkUtil:
         reader = cls.vti_file_to_reader(filename)
         cls.write_pvti_from_reader(reader, outfile, number_of_pieces)
 
-    def archive_to_tiff_dir(self, url, filename, scratch_subdir_name):
+    def expand_archive(self, url, filename, scratch_subdir_name):
         # fetch and unzip the zip/7z file
         scratch_dir = self.base_scratch_directory / scratch_subdir_name
         expanded_dir = scratch_dir / 'expanded'
@@ -148,26 +116,25 @@ class VtkUtil:
             logging.warning('got zip error on file {f}: {ex}; trying alternative'
                             .format(f=str(filename), ex=str(ex)))
             self.jar_unzip(destpath, expanded_dir)
-        # locate the tiff directory
-        return(self.find_tiff_dir(expanded_dir))
+        except PatoolError as ex:
+            logging.warning("couldn't expand {f} - assuming not compressed/zipped/etc".format(
+                f = destpath))
+            (expanded_dir / destpath.name).symlink_to(destpath)
+                            
+        return(expanded_dir)
 
     def jar_unzip(self, srcfile, destdir):
         # this is a horrible kludge to get around Archive's
         # false-positive zip bomb errors on large files
         subprocess.run(['jar', '-xf', srcfile], check=True, cwd=str(destdir))
 
-    def find_tiff_dir(self, dir):
-        if len(list(dir.glob('*.tif'))) > 0 or len(list(dir.glob('*.tiff'))) > 0:
-            return(dir)
-        for child in dir.iterdir():
-            result = self.find_tiff_dir(child)
-            if result:
-                return(result)
-        return None
-
     def archive_to_vti_reader(self, url, filename, scratch_subdir_name):
-        tiff_dir = self.archive_to_tiff_dir(url, filename, scratch_subdir_name)
-        return (self.tiff_dir_to_vti_reader(tiff_dir) if tiff_dir else None)
+        expanded_dir = self.expand_archive(url, filename, scratch_subdir_name)
+        if expanded_dir is not None:
+            viz_reader = readers.new_image_reader(expanded_dir)
+            if viz_reader is not None:
+                return viz_reader.get_vti_reader()
+        return None
 
     @classmethod
     def find_best_size(cls, reader, target_size):

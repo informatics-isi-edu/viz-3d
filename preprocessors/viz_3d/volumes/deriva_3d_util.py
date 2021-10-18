@@ -6,6 +6,7 @@ from pyunpack import Archive
 from pathlib import Path
 import json
 
+
 class Deriva3DUtil:
     def __init__(self, host, config_filename=None, public_records_only=True):
         self.host = host
@@ -31,7 +32,7 @@ class Deriva3DUtil:
         else:
             self.read_catalog = self.catalog
             self.read_pb = self.pb
-            
+
         scratch_directory = self.config.get('scratch_directory')
         if scratch_directory is None:
             raise ValueError('no scratch_directory specified for host {h} in file {f}'
@@ -48,8 +49,6 @@ class Deriva3DUtil:
 
             self.status_column_name = su['column']
             self.status_column_detail_name = su.get('detail_column')
-
-
 
         self.backpointer_table = None
         bp = self.config.get('backpointer')
@@ -113,9 +112,9 @@ class Deriva3DUtil:
 
             for col in self.config['source_columns_to_copy']:
                 row[col] = sourcerow[col]
-        new_row = None
+        processed_row = None
         try:
-            new_row = table.insert(
+            processed_row = table.insert(
                 [row],
                 defaults=set(self.config.get('columns_to_leave_at_defaults')),
                 nondefaults=set(self.config.get('nondefaults'))
@@ -129,15 +128,16 @@ class Deriva3DUtil:
                             .entities()
             if len(entities) != 1:
                 raise ex
-            if entities[0].get(self.config['source_rid_column']) != \
+            processed_row = entities[0]
+            if processed_row.get(self.config['source_rid_column']) != \
                row[self.config['source_rid_column']]:
                 raise ex
 
-        if new_row and self.backpointer_table:
+        if self.backpointer_table:
             self.backpointer_table.update([
                 {
                     'RID': rid,
-                    self.backpointer_column_name: new_row['RID']
+                    self.backpointer_column_name: processed_row['RID']
                 }
             ])
 

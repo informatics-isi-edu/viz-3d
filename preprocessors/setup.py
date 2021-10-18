@@ -7,7 +7,7 @@ setup(
     name='viz_3d',
     description='3d visualization tools',
     version="0.1",
-    packages=['viz_3d', 'viz_3d.volumes'],
+    packages=['viz_3d', 'viz_3d.volumes', 'viz_3d.volumes.readers'],
     install_requires=[
         'deriva',
         'vtk',

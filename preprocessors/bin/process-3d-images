@@ -32,7 +32,6 @@ def main(host, target_voxel_count, status, rids, config_file):
 
     for rid in rids:
         try:
-            print('Processing {rid}'.format(rid=rid))
             process_one_image(rid, du, vu, target_voxel_count)
         except Exception as ex:
             logger.error(str(ex))
