@@ -18,9 +18,9 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-def main(host, target_voxel_count, status, rids, config_file):
-    du = Deriva3DUtil(host, config_file)
-    vu = VtkUtil(host, du.get_scratch_directory())
+def main(host, catalog_id, schema_name, table_name, target_voxel_count, status, rids, scratch_directory):
+    du = Deriva3DUtil(host, schema_name, table_name, catalog_id)
+    vu = VtkUtil(host, scratch_directory)
     rids = set(rids)
     if len(rids) == 0:
         status = status if status else 'new'
@@ -34,7 +34,8 @@ def main(host, target_voxel_count, status, rids, config_file):
         try:
             process_one_image(rid, du, vu, target_voxel_count)
         except Exception as ex:
-            logger.error(str(ex))
+#            logger.error(str(ex))
+            logger.error(traceback.format_exc())
             du.update_status(rid, 'error', ex)
 
 
@@ -67,7 +68,15 @@ if __name__ == '__main__':
                             help='target size (in voxels) for downsampled file')
     cli.parser.add_argument('--status', default=None,
                             help='process records with this processing status')
+    cli.parser.add_argument('--scratch', default='/var/scratch/viz-3d',
+                            help='scratch directory for raw and processed files')
+    cli.parser.add_argument('--catalog-id', type=int, default=1)
+    cli.parser.add_argument('schema', default=None,
+                            help='schema of table containing raw 3D images')
+    cli.parser.add_argument('table', default=None,
+                            help='name of table containing raw 3D images')
     cli.parser.add_argument('rid', nargs='*', default=None,
                             help='process records with this/these RID(s)')
     args = cli.parse_cli()
-    main(args.host, args.target_voxel_count, args.status, args.rid, args.config_file)
+    main(args.host, args.catalog_id, args.schema, args.table, args.target_voxel_count,
+         args.status, args.rid, args.scratch)

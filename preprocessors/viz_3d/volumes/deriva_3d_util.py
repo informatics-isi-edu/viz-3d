@@ -2,29 +2,24 @@ from deriva.core import DerivaServer, get_credential, HatracStore
 from deriva.core.utils import hash_utils
 from deriva.core.datapath import DataPathException
 from urllib import request, parse
-from pyunpack import Archive
 from pathlib import Path
 import json
 
 
 class Deriva3DUtil:
-    def __init__(self, host, config_filename=None, public_records_only=True):
+    TAG = 'tag:isrd.isi.edu,2021:viz-3d-display'
+    DEFAULT_RESOLVER_PREFIX = '/id/'
+    def __init__(self, host, schema_name, table_name, catalog_id=1, public_records_only=True):
+        print("host '{h}', schema '{s}', table '{t}', catalog '{c}'".format(
+            h=str(host), s=str(schema_name), t=str(table_name), c=str(catalog_id)))
         self.host = host
-        self.config_path = Path(config_filename) if config_filename \
-            else Path.home() / 'viz_3d_config.json'
-        all_config = json.load(self.config_path.open())
-        self.config = all_config.get(host)
-        if self.config is None:
-            raise ValueError('no configuration found for host {h}'.format(h=host))
-        catalog_id = self.config.get('catalog_id')
-        if catalog_id is None:
-            raise ValueError('no catalog_id specified for host {h} in file {f}'
-                             .format(h=host), f=str(self.config_path))
         credential = get_credential(host)
         self.hatrac_server = HatracStore('https', host, credential)
         server = DerivaServer('https', host, credential)
         self.catalog = server.connect_ermrest(catalog_id)
         self.pb = self.catalog.getPathBuilder()
+        self.config = self.get_config(schema_name, table_name)
+
         if public_records_only:
             read_server = DerivaServer('https', host, None)
             self.read_catalog = read_server.connect_ermrest(catalog_id)
@@ -32,12 +27,6 @@ class Deriva3DUtil:
         else:
             self.read_catalog = self.catalog
             self.read_pb = self.pb
-
-        scratch_directory = self.config.get('scratch_directory')
-        if scratch_directory is None:
-            raise ValueError('no scratch_directory specified for host {h} in file {f}'
-                             .format(h=host), f=str(self.config_path))
-        self.base_scratch_directory = Path(scratch_directory) / host
 
         su = self.config.get('status_update')
         self.status_table = None
@@ -57,9 +46,37 @@ class Deriva3DUtil:
                 bp.get('schema')).tables.get(bp.get('table'))
             self.backpointer_column_name = bp['column']
 
-    def get_scratch_directory(self):
-        return(str(self.base_scratch_directory))
+    def get_config(self, schema_name, table_name):
+        model = self.catalog.getCatalogModel()
+        config_table = model.table(schema_name, table_name)
 
+        config = config_table.annotations.get(self.TAG)        
+        if config is None:
+            raise Deriva3DUtilConfigError(
+                'No {tag} annotation found for table {s}:{t}'.format(
+                    tag=self.TAG, c = self.CONTEXT, s=schema_name, t=table_name))
+        if config.get('resolver_prefix') is None:
+            config['resolver_prefix'] = DEFAULT_RESOLVER_PREFIX
+        for key in [
+                'rid_to_file_query',
+                'processed_file']:
+            if config.get(key) is None:
+                raise Deriva3DUtilConfigError(
+                    '{attr} missing from {tag} annotation for table {s}:{t}'.format(
+                        attr=key, tag=self.TAG, s=schema_name, t=table_name))
+        pfconfig = config.get('processed_file')
+        for key in [
+                'schema',
+                'table',
+                'source_rid_column',
+                'hatrac_parent',
+                'url_column']:
+            if pfconfig.get(key) is None:
+                raise Deriva3DUtilConfigError(
+                    '{attr} missing from processed_file attributes in  {tag} annotation for table {s}:{t}'\
+                    .format(attr=key, tag=self.TAG, s=schema_name, t=table_name))
+        return(config)
+        
     def rid_to_file_info(self, rid):
         self.validate_rid(rid)
         query = self.config.get('rid_to_file_query')
@@ -81,24 +98,25 @@ class Deriva3DUtil:
     def upload_processed_file(self, rid, sourcefile, downsample_percent):
         self.validate_rid(rid)
         sourcepath = Path(sourcefile)
-        destpath = self.config['base_hatrac_path'] + '/' + rid + '/' + sourcepath.name
+        processed_file_config = self.config.get('processed_file')
+        destpath = processed_file_config['hatrac_parent'] + '/' + rid + '/' + sourcepath.name
         url = self.hatrac_server.put_obj(destpath, sourcepath, parents=True,
                                          content_type='application/x-vti')
-        table = self.pb.schemas.get(self.config['processed_file_schema'])\
-            .tables.get(self.config['processed_file_table'])
+        table = self.pb.schemas.get(processed_file_config['schema'])\
+            .tables.get(processed_file_config['table'])
         md5 = hash_utils.compute_file_hashes(sourcepath, hashes=['md5'])['md5'][0]
         row = {
-            self.config['source_rid_column']: rid,
-            self.config['url_column']: url,
+            processed_file_config['source_rid_column']: rid,
+            processed_file_config['url_column']: url,
         }
-        if self.config.get('filename_column'):
-            row[self.config['filename_column']] = sourcepath.name
-        if self.config.get('md5_column'):
-            row[self.config['md5_column']] = md5
-        if self.config.get('size_column'):
-            row[self.config['size_column']] = sourcepath.stat().st_size
-        if self.config.get('downsample_percent_column'):
-            row[self.config['downsample_percent_column']] = downsample_percent
+        if processed_file_config.get('filename_column'):
+            row[processed_file_config['filename_column']] = sourcepath.name
+        if processed_file_config.get('md5_column'):
+            row[processed_file_config['md5_column']] = md5
+        if processed_file_config.get('size_column'):
+            row[processed_file_config['size_column']] = sourcepath.stat().st_size
+        if processed_file_config.get('downsample_percent_column'):
+            row[processed_file_config['downsample_percent_column']] = downsample_percent
 
         if (self.config['source_columns_to_copy'] and
             len(self.config['source_columns_to_copy']) > 0):
@@ -121,16 +139,16 @@ class Deriva3DUtil:
             )[0]
         except DataPathException as ex:
             # if the problem is that this is a duplicate, ignore it.
-            md5_col = self.pb.schemas.get(self.config['processed_file_schema'])\
-                .tables.get(self.config['processed_file_table'])\
-                .column_definitions.get(self.config['md5_column'])
-            entities = table.filter(md5_col == row[self.config['md5_column']])\
+            md5_col = self.pb.schemas.get(processed_file_config['schema'])\
+                .tables.get(processed_file_config['table'])\
+                .column_definitions.get(processed_file_config['md5_column'])
+            entities = table.filter(md5_col == row[processed_file_config['md5_column']])\
                             .entities()
             if len(entities) != 1:
                 raise ex
             processed_row = entities[0]
-            if processed_row.get(self.config['source_rid_column']) != \
-               row[self.config['source_rid_column']]:
+            if processed_row.get(processed_file_config['source_rid_column']) != \
+               row[processed_file_config['source_rid_column']]:
                 raise ex
 
         if self.backpointer_table:
@@ -172,3 +190,6 @@ class Deriva3DUtil:
                 row[self.status_column_detail_name] = str(exception) \
                     if exception else None
             self.status_table.update([row])
+
+class Deriva3DUtilConfigError(Exception):
+    pass
