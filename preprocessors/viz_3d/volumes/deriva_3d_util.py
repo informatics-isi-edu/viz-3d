@@ -3,15 +3,11 @@ from deriva.core.utils import hash_utils
 from deriva.core.datapath import DataPathException
 from urllib import request, parse
 from pathlib import Path
-import json
-import sys
 
 class Deriva3DUtil:
     TAG = 'tag:isrd.isi.edu,2021:viz-3d-display'
     DEFAULT_RESOLVER_PREFIX = '/id/'
     def __init__(self, host, schema_name, table_name, catalog_id=1, public_records_only=True):
-        print("host '{h}', schema '{s}', table '{t}', catalog '{c}'".format(
-            h=str(host), s=str(schema_name), t=str(table_name), c=str(catalog_id)))
         self.host = host
         credential = get_credential(host)
         self.hatrac_server = HatracStore('https', host, credential)
@@ -47,8 +43,6 @@ class Deriva3DUtil:
                         .entities()
                 for row in status_rows:
                     self.status_values[row['Name']] = row['ID']
-                json.dump(self.status_values, sys.stdout, indent=4)
-                
 
         self.backpointer_table = None
         bp = self.config.get('backpointer')
@@ -115,8 +109,8 @@ class Deriva3DUtil:
         sourcepath = Path(sourcefile)
         processed_file_config = self.config.get('processed_file')
         destpath = processed_file_config['hatrac_parent'] + '/' + rid + '/' + sourcepath.name
-        url = self.hatrac_server.put_obj(destpath, sourcepath, parents=True,
-                                         content_type='application/x-vti')
+        url = self.hatrac_server.put_loc(destpath, sourcepath, create_parents=True,
+                                         chunked=True, content_type='application/x-vti')
         table = self.pb.schemas.get(processed_file_config['schema'])\
             .tables.get(processed_file_config['table'])
         md5 = hash_utils.compute_file_hashes(sourcepath, hashes=['md5'])['md5'][0]
