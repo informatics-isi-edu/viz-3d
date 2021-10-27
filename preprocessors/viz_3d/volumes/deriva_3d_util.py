@@ -4,7 +4,7 @@ from deriva.core.datapath import DataPathException
 from urllib import request, parse
 from pathlib import Path
 import json
-
+import sys
 
 class Deriva3DUtil:
     TAG = 'tag:isrd.isi.edu,2021:viz-3d-display'
@@ -35,9 +35,20 @@ class Deriva3DUtil:
                 su.get('schema')).tables.get(su.get('table'))
             self.read_status_table = self.read_pb.schemas.get(
                 su.get('schema')).tables.get(su.get('table'))
-
             self.status_column_name = su['column']
             self.status_column_detail_name = su.get('detail_column')
+
+            self.status_values = dict()
+            if su.get('status_value_schema') and su.get('status_value_table'):
+                status_rows = \
+                    self.read_pb\
+                        .schemas.get(su.get('status_value_schema'))\
+                        .tables.get(su.get('status_value_table'))\
+                        .entities()
+                for row in status_rows:
+                    self.status_values[row['Name']] = row['ID']
+                json.dump(self.status_values, sys.stdout, indent=4)
+                
 
         self.backpointer_table = None
         bp = self.config.get('backpointer')
@@ -45,6 +56,10 @@ class Deriva3DUtil:
             self.backpointer_table = self.pb.schemas.get(
                 bp.get('schema')).tables.get(bp.get('table'))
             self.backpointer_column_name = bp['column']
+
+    def status(self, status_name):
+        val = self.status_values.get(status_name)
+        return val if val is not None else status_name
 
     def get_config(self, schema_name, table_name):
         model = self.catalog.getCatalogModel()
@@ -54,7 +69,7 @@ class Deriva3DUtil:
         if config is None:
             raise Deriva3DUtilConfigError(
                 'No {tag} annotation found for table {s}:{t}'.format(
-                    tag=self.TAG, c = self.CONTEXT, s=schema_name, t=table_name))
+                    tag=self.TAG, s=schema_name, t=table_name))
         if config.get('resolver_prefix') is None:
             config['resolver_prefix'] = DEFAULT_RESOLVER_PREFIX
         for key in [
@@ -174,7 +189,8 @@ class Deriva3DUtil:
             raise ValueError('No status table configured')
         status_column = \
             self.read_status_table.column_definitions[self.status_column_name]
-        entities = self.read_status_table.filter(status_column == status).entities()
+        entities = self.read_status_table.filter(status_column == self.status(status))\
+                                         .entities()
         rids = []
         for row in entities:
             rids.append(row['RID'])
@@ -184,7 +200,7 @@ class Deriva3DUtil:
         if self.status_table:
             row = {
                 'RID': rid,
-                self.status_column_name: status
+                self.status_column_name: self.status(status)
             }
             if self.status_column_detail_name:
                 row[self.status_column_detail_name] = str(exception) \
