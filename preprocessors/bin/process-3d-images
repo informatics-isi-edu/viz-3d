@@ -10,6 +10,8 @@ import sys
 import signal
 import logging
 from logging.handlers import SysLogHandler
+from pathlib import Path
+import os
 
 logger = logging.getLogger('process-3d-images')
 formatter = logging.Formatter('%(name)s: %(message)s')
@@ -17,10 +19,14 @@ handler = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_LOCAL1)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
+lockfile = None
 
-def main(host, catalog_id, schema_name, table_name, target_voxel_count, status, rids, scratch_directory):
+def main(host, catalog_id, schema_name, table_name, target_voxel_count, status,
+         rids, scratch_directory, throttle):
+    if throttle:
+        acquire_lock()
     du = Deriva3DUtil(host, schema_name, table_name, catalog_id)
-    vu = VtkUtil(host, scratch_directory)
+    vu = VtkUtil(host, Path(scratch_directory) / host)
     rids = set(rids)
     if len(rids) == 0:
         status = status if status else 'new'
@@ -34,13 +40,29 @@ def main(host, catalog_id, schema_name, table_name, target_voxel_count, status, 
         try:
             process_one_image(rid, du, vu, target_voxel_count)
         except Exception as ex:
-#            logger.error(str(ex))
             logger.error(traceback.format_exc())
             du.update_status(rid, 'error', ex)
 
+    release_lock()
 
-def signal_handler(self, signal, frame=None):
-    raise InterruptedError('got signal {sig}'.format(sig=signal.strsignal(signal)))
+def acquire_lock():
+    lockfile = Path('/var/lock/3d-processing') / 'lock'
+    if lockfile.exists() and lockfile.stat().st_size > 0:
+        lockpid=lockfile.read_text()
+        if (Path('/proc') / lockpid).exists():
+            logger.warning('Throttled process already running, exiting')
+            sys.exit(0)
+    lockfile.open('w')
+    lockfile.write_text(str(os.getpid()))
+    locked = True
+
+def release_lock():
+    if lockfile:
+        lockfile.unlink(missing_ok=True)
+        
+def signal_handler(sig, frame=None):
+    release_lock()
+    raise InterruptedError('got signal {sig}'.format(sig=signal.strsignal(sig)))
 
 
 def process_one_image(rid, du, vu, target_voxel_count):
@@ -71,6 +93,8 @@ if __name__ == '__main__':
     cli.parser.add_argument('--scratch', default='/var/scratch/viz-3d',
                             help='scratch directory for raw and processed files')
     cli.parser.add_argument('--catalog-id', type=int, default=1)
+    cli.parser.add_argument('--throttle', default=False, action='store_true',
+                            help='allow only one throttled process to run as this user at a time')
     cli.parser.add_argument('schema', default=None,
                             help='schema of table containing raw 3D images')
     cli.parser.add_argument('table', default=None,
@@ -79,4 +103,4 @@ if __name__ == '__main__':
                             help='process records with this/these RID(s)')
     args = cli.parse_cli()
     main(args.host, args.catalog_id, args.schema, args.table, args.target_voxel_count,
-         args.status, args.rid, args.scratch)
+         args.status, args.rid, args.scratch, args.throttle)
