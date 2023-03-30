@@ -104,9 +104,9 @@ class Deriva3DUtil:
                 .format(r=rid))
         return(result)
 
-    def upload_processed_file(self, rid, sourcefile, downsample_percent):
+    def upload_processed_file(self, rid, processed_file_info):
         self.validate_rid(rid)
-        sourcepath = Path(sourcefile)
+        sourcepath = Path(processed_file_info['filename'])
         processed_file_config = self.config.get('processed_file')
         destpath = processed_file_config['hatrac_parent'] + '/' + rid + '/' + sourcepath.name
         url = self.hatrac_server.put_loc(destpath, sourcepath, create_parents=True,
@@ -118,14 +118,14 @@ class Deriva3DUtil:
             processed_file_config['source_rid_column']: rid,
             processed_file_config['url_column']: url,
         }
-        if processed_file_config.get('filename_column'):
-            row[processed_file_config['filename_column']] = sourcepath.name
         if processed_file_config.get('md5_column'):
             row[processed_file_config['md5_column']] = md5
         if processed_file_config.get('size_column'):
             row[processed_file_config['size_column']] = sourcepath.stat().st_size
-        if processed_file_config.get('downsample_percent_column'):
-            row[processed_file_config['downsample_percent_column']] = downsample_percent
+        for key in processed_file_info.keys():
+            if processed_file_config.get(key + '_column'):
+                row[processed_file_config.get(key + '_column')] = processed_file_info[key]
+        
 
         if (self.config['source_columns_to_copy'] and
             len(self.config['source_columns_to_copy']) > 0):
@@ -141,10 +141,14 @@ class Deriva3DUtil:
                 row[col] = sourcerow[col]
         processed_row = None
         try:
+            defaults=self.config.get('columns_to_leave_at_defaults')
+            nondefaults=self.config.get('nondefaults')
+            defaults = set(defaults) if defaults else set()
+            nondefaults = set(nondefaults) if nondefaults else set()
             processed_row = table.insert(
                 [row],
-                defaults=set(self.config.get('columns_to_leave_at_defaults')),
-                nondefaults=set(self.config.get('nondefaults'))
+                defaults=defaults,
+                nondefaults=nondefaults
             )[0]
         except DataPathException as ex:
             # if the problem is that this is a duplicate, ignore it.

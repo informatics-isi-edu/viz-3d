@@ -17,25 +17,26 @@ class VtkUtil:
 
     # scratch_directory is a directory with lots of space for scratch files
     # host is just used to expand relative urls
-    def __init__(self, host, scratch_directory):
+    def __init__(self, host, source_file_url, source_file_name, rid, base_scratch_directory):
         self.host = host
-        self.base_scratch_directory = Path(scratch_directory)
+        self.source_file_url = source_file_url
+        self.source_file_name = source_file_name
+        self.rid = rid
+        self.scratch_directory = Path(base_scratch_directory) / self.host / self.rid
+        self.reader = None
 
     # generates a filename of the form
     #   /scratch_dir/image_id/filename[_downsample].vti
-    def image_file_name(self, image_id, filename, downsample=None):
-        filename = Path(filename).stem
+    def image_file_name(self, downsample=None):
+        filename = Path(self.source_file_name).stem
         if downsample:
             filename = filename + '_' + str(downsample)
-        return((self.scratch_image_directory(image_id) / filename)
+        return((self.scratch_directory / filename)
                .with_suffix('.vti').as_posix())
 
-    def scratch_image_directory(self, image_id):
-        return self.base_scratch_directory / image_id
-
-    def clean_scratch_files(self, image_id):
+    def clean_scratch_files(self):
         shutil.rmtree(
-            self.scratch_image_directory(image_id).as_posix(), ignore_errors=True)
+            self.scratch_directory.as_posix(), ignore_errors=True)
 
     # write a vtk reader object to a set of parallelized vti files
     @classmethod
@@ -53,12 +54,11 @@ class VtkUtil:
 
     # write a vtk reader object to a vti file
     @classmethod
-    def write_vti_from_reader(cls, reader, outfile):
+    def get_vti_writer(cls, reader, outfile):
         writer = vtk.vtkXMLImageDataWriter()
         writer.SetFileName(outfile)
         writer.SetInputConnection(reader.GetOutputPort())
-#        writer.Update()
-        writer.Write()
+        return writer
 
     @classmethod
     def vti_file_to_reader(cls, filename):
@@ -66,14 +66,13 @@ class VtkUtil:
         reader.SetFileName(filename)
         return(reader)
 
-    @classmethod
-    def vti_downsample(cls, reader, fraction):
+    def vti_downsample(self, fraction):
         if fraction == 1.0:
-            return(reader)
+            return(self.reader)
         if fraction <= 0 or fraction > 1:
             raise ValueError('fraction should be between 0 and 1')
         resizer = vtk.vtkImageResize()
-        resizer.SetInputConnection(reader.GetOutputPort())
+        resizer.SetInputConnection(self.reader.GetOutputPort())
         resizer.SetResizeMethod(resizer.MAGNIFICATION_FACTORS)
         resizer.SetMagnificationFactors(fraction, fraction, fraction)
         return(resizer)
@@ -94,15 +93,16 @@ class VtkUtil:
         reader = cls.vti_file_to_reader(filename)
         cls.write_pvti_from_reader(reader, outfile, number_of_pieces)
 
-    def expand_archive(self, url, filename, scratch_subdir_name):
+    def expand_archive(self, url, filename):
         # fetch and unzip the zip/7z file
-        scratch_dir = self.base_scratch_directory / scratch_subdir_name
-        expanded_dir = scratch_dir / 'expanded'
+        expanded_dir = self.scratch_directory / 'expanded'
         expanded_dir.mkdir(parents=True, exist_ok=True)
-        if url.startswith('/'):
-            url = parse.urlunparse(['https', self.host, url, '', '', ''])
-        src = request.urlopen(url)
-        destpath = scratch_dir / filename
+        if self.source_file_url.startswith('/'):
+            self.source_file_url = parse.urlunparse(
+                ['https', self.host, self.source_file_url, '', '', ''])
+
+        src = request.urlopen(self.source_file_url)
+        destpath = self.scratch_directory / filename
         dest = destpath.open(mode='wb')
         while True:
             buf = src.read(102400)
@@ -128,18 +128,29 @@ class VtkUtil:
         # false-positive zip bomb errors on large files
         subprocess.run(['jar', '-xf', srcfile], check=True, cwd=str(destdir))
 
-    def archive_to_vti_reader(self, url, filename, scratch_subdir_name):
-        expanded_dir = self.expand_archive(url, filename, scratch_subdir_name)
+    def archive_to_vti_reader(self):
+        expanded_dir = self.expand_archive(self.source_file_url, self.source_file_name)
         if expanded_dir is not None:
             viz_reader = readers.new_image_reader(expanded_dir)
             if viz_reader is not None:
-                return viz_reader.get_vti_reader()
-        return None
+                self.reader = viz_reader.get_vti_reader()
+        return self.reader
 
-    @classmethod
-    def find_best_size(cls, reader, target_size):
-        reader.Update()
-        orig_size = reader.GetOutputDataObject(0).GetNumberOfPoints()
-        if orig_size <= target_size:
+    def find_best_size(self, target_voxels):
+        self.reader.Update()
+        self.original_voxels = self.reader.GetOutputDataObject(0).GetNumberOfPoints()
+        if self.original_voxels <= target_voxels:
             return(1.0)
-        return round(pow(target_size / orig_size, .333), 2)
+        return round(pow(target_voxels / self.original_voxels, .333), 2)
+
+    def resize_and_write(self, fraction):
+        resizer = self.vti_downsample(fraction)
+        outfile = self.image_file_name(int(fraction * 100))
+        writer = self.get_vti_writer(resizer, outfile)
+        writer.Write()
+        return {
+            "filename": outfile,
+            "downsample_percent": int(fraction * 100),
+            "source_voxels": self.original_voxels,
+            "processed_voxels": writer.GetInput().GetNumberOfPoints()
+        }

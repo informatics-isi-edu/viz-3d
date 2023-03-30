@@ -9,6 +9,7 @@ import traceback
 import sys
 import signal
 import logging
+import time
 from logging.handlers import SysLogHandler
 from pathlib import Path
 import os
@@ -26,7 +27,6 @@ def main(host, catalog_id, schema_name, table_name, target_voxel_count, status,
     if throttle:
         acquire_lock()
     du = Deriva3DUtil(host, schema_name, table_name, catalog_id)
-    vu = VtkUtil(host, Path(scratch_directory) / host)
     rids = set(rids)
     if len(rids) == 0:
         status = status if status else 'new'
@@ -38,7 +38,7 @@ def main(host, catalog_id, schema_name, table_name, target_voxel_count, status,
 
     for rid in rids:
         try:
-            process_one_image(rid, du, vu, target_voxel_count)
+            process_one_image(rid, du, target_voxel_count, scratch_directory)
         except Exception as ex:
             logger.error(traceback.format_exc())
             du.update_status(rid, 'error', ex)
@@ -65,21 +65,21 @@ def signal_handler(sig, frame=None):
     raise InterruptedError('got signal {sig}'.format(sig=signal.strsignal(sig)))
 
 
-def process_one_image(rid, du, vu, target_voxel_count):
+def process_one_image(rid, du, target_voxel_count, scratch_directory):
     logger.info('processing RID {r}'.format(r=rid))
+    start_time = time.time()
     du.update_status(rid, 'in progress')
     file_info = du.rid_to_file_info(rid)
-    reader = vu.archive_to_vti_reader(file_info['source_file_url'],
-                                      file_info['source_file_name'], rid)
-    fraction = vu.find_best_size(reader, target_voxel_count)
-    resizer = vu.vti_downsample(reader, fraction)
-    outfile = vu.image_file_name(rid, file_info['source_file_name'],
-                                    int(fraction * 100))
-    vu.write_vti_from_reader(resizer, outfile)
-    du.upload_processed_file(rid, outfile, int(fraction * 100))
+    vu = VtkUtil(du.host, file_info['source_file_url'],
+                 file_info['source_file_name'], rid, scratch_directory)
+    reader = vu.archive_to_vti_reader()
+    fraction = vu.find_best_size(target_voxel_count)
+    resized_file_info = vu.resize_and_write(fraction)
+    resized_file_info['processing_start_time'] = time.ctime(start_time)
+    resized_file_info['processing_seconds'] = int(time.time() - start_time + .5)
+    du.upload_processed_file(rid, resized_file_info)
     du.update_status(rid, 'success')
-    vu.clean_scratch_files(rid)
-
+    vu.clean_scratch_files()
 
 if __name__ == '__main__':
 
