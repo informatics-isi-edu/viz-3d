@@ -11,6 +11,7 @@ module.exports = {
     output: {
 	path: path.join(__dirname, 'dist'),
 	filename: '[name].js',
+	hashFunction: 'xxhash64',
     },
     mode: 'development',
     module: {

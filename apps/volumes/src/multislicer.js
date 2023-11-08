@@ -14,8 +14,8 @@ import vtkVolume from 'vtk.js/Sources/Rendering/Core/Volume';
 import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
 import vtkColorMaps from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
-import vtkLabelWidget from 'vtk.js/Sources/Interaction/Widgets/LabelWidget';
-import TextAlign from 'vtk.js/Sources/Interaction/Widgets/LabelRepresentation/Constants';
+import vtkLabelWidget from 'vtk.js/Sources/Widgets/Widgets3D/LabelWidget';
+//import TextAlign from 'vtk.js/Sources/Interaction/Widgets/LabelRepresentation/Constants';
 
 
 // import { VtkDataTypes } from 'vtk.js/Sources/Common/Core/DataArray/Constants';
@@ -270,7 +270,7 @@ export default class multislicer {
 		fontColor: 'red',
 		strokeColor: 'black'
 	    });
-	    widget.getWidgetRep().setTextAlign('RIGHT');
+//	    widget.getWidgetRep().setTextAlign('RIGHT');
 	    widget.getWidgetRep().setVerticalAlign('TOP');	    	    
 	    this.imageActorMappers[dim]["label"] = widget;
 	});
